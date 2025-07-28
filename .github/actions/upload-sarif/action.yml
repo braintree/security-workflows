@@ -1,0 +1,43 @@
+name: Process & Upload SARIF Results
+description: Process & upload SARIF results
+
+inputs:
+  sarif_dir:
+    description: Directory of CodeQL SARIF results output
+    required: true
+  filter_patterns:
+    description: Comma-separated list of filter patterns
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - name: Set SARIF file
+      shell: bash
+      run: |
+        sarif_dir=${{ inputs.sarif_dir }}
+        sarif_file=$(find ${sarif_dir} -type f -name "*.sarif" | head -n 1)
+        echo "SARIF_FILE=${sarif_file}" >> $GITHUB_ENV
+
+    - name: Set Filter patterns
+      if: ${{ inputs.filter_patterns != '' }}
+      id: set-patterns
+      shell: bash
+      run: |
+        echo "patterns<<EOF" >> $GITHUB_OUTPUT
+        echo "${{ inputs.filter_patterns }}" | tr ',' '\n' >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+    
+    - name: Filter SARIF
+      if: ${{ inputs.filter_patterns != '' }}
+      uses: advanced-security/filter-sarif@f3b8118a9349d88f7b1c0c488476411145b6270d
+      with:
+        patterns: ${{ steps.set-patterns.outputs.patterns }}
+        input: ${{ env.SARIF_FILE }}
+        output: ${{ env.SARIF_FILE }}
+
+    - name: Upload SARIF
+      id: upload-sarif
+      uses: github/codeql-action/upload-sarif@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
+      with:
+        sarif_file: ${{ env.SARIF_FILE }}

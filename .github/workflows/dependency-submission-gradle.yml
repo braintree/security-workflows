@@ -1,0 +1,40 @@
+name: Dependency Submission
+
+on:
+  workflow_call:
+    inputs:
+      java-version:
+        description: 'Optional Java version number'
+        required: false
+        default: 17
+        type: number
+      project-root:
+        description: 'Optional path to the project root directory'
+        required: false
+        type: string
+        default: './'
+
+permissions:
+  contents: write
+
+jobs:
+  dependency-submission:
+    name: Dependency Submission
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Setup Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: adopt
+  
+      - name: Generate and submit dependency graph
+        id: dependabot
+        uses: gradle/actions/dependency-submission@06832c7b30a0129d7fb559bcc6e43d26f6374244
+        with:
+          build-root-directory: ${{ inputs.project-root }}

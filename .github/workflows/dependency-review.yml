@@ -1,0 +1,46 @@
+name: Dependency Review
+
+on:
+  workflow_call:
+
+permissions:
+  contents: write
+  pull-requests: write
+  statuses: write
+
+jobs:
+  dependency-review:
+    name: Dependency Review
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      STATUS_NAME: 'ProdSec - Dependency Review'
+
+    steps:
+      - name: Create commit status
+        uses: braintree/security-workflows/.github/actions/commit-status@main
+        with:
+          state: pending
+          description: 'Dependency review in progress'
+          context: ${{ env.STATUS_NAME }}
+
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+  
+      - name: Dependency review       
+        uses: actions/dependency-review-action@67d4f4bd7a9b17a0db54d2a7519187c65e339de8
+        with:
+          fail-on-severity: critical
+          fail-on-scopes: runtime
+          comment-summary-in-pr: always
+          show-openssf-scorecard: false
+          license-check: false
+
+      - name: Update commit status
+        if: always()
+        uses: braintree/security-workflows/.github/actions/commit-status@main
+        with:
+          state: ${{ job.status == 'success' && 'success' || 'failure' }}
+          description: ${{ job.status == 'success' && 'Dependency review completed successfully.' || 'Dependency review failed.' }}
+          context: ${{ env.STATUS_NAME }}
