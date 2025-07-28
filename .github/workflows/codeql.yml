@@ -1,0 +1,98 @@
+name: Code Scanning
+
+on:
+  workflow_call:
+    inputs:
+      language:
+        description: 'Language to analyze with CodeQL'
+        required: true
+        type: string
+      build-command:
+        description: 'Optional application build command'
+        required: false
+        type: string
+      filter-patterns:
+        description: 'Optional comma-separated list of filter patterns'
+        required: false
+        type: string
+      timeout-minutes:
+        description: 'Optional override for larger builds'
+        required: false
+        default: 20
+        type: number
+
+permissions:
+  security-events: write
+  # required to fetch internal or private CodeQL packs
+  packages: read
+  actions: read
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  code-scanning:
+    name: Code Scanning
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    strategy:
+      fail-fast: false
+
+    steps:
+      - name: Capture start time
+        run: echo "start_time=$(date +%s)" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Setup Node
+        if: ${{ inputs.language == 'javascript-typescript' || inputs.language == 'javascript' }}
+        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e
+        with:
+          node-version: 22
+    
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
+        with:
+          languages: ${{ inputs.language }}
+          build-mode: ${{ inputs.build-command != '' && 'manual' || 'none' }}
+          config: |
+            paths-ignore:
+              - fixtures
+              - spec
+              - sorbet
+              - linters
+              - '**/test_*.rb'
+            query-filters:
+              - exclude:
+                  id: js/disabling-certificate-validation
+              - exclude:
+                  id: py/hardcoded-credentials
+              - exclude:
+                  id: js/missing-rate-limiting
+              - exclude:
+                  id: py/request-without-cert-validation
+              - exclude:
+                  id: rb/request-without-cert-validation
+              
+      - name: Manual build 
+        if: ${{ inputs.build-command != '' }}
+        run: |
+          {{ inputs.build-command }}
+
+      - name: Perform CodeQL Analysis
+        id: codeql
+        uses: github/codeql-action/analyze@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
+        with:
+          category: "/language:${{ inputs.language }}"
+          output: sarif-results
+          upload: failure-only
+
+      - name: Process & Upload SARIF
+        uses: braintree/security-workflows/.github/actions/upload-sarif@main
+        with:
+          sarif_dir: ${{ env.CODEQL_ACTION_SARIF_RESULTS_OUTPUT_DIR }}
+          filter_patterns: ${{ inputs.filter-patterns }}

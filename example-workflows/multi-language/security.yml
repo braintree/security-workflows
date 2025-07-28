@@ -1,0 +1,25 @@
+name: Security
+# Slack: #help-product-security
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+# Use multiple code-scanning jobs for multi-language repositories
+jobs:
+  code-scanning-python:
+    uses: braintree/security-workflows/.github/workflows/codeql.yml@main
+    with:
+      language: python
+
+  code-scanning-javascript:
+    uses: braintree/security-workflows/.github/workflows/codeql.yml@main
+    with:
+      language: javascript
+
+  dependency-review:
+    if: ${{ github.event_name == 'pull_request' }}
+    uses: braintree/security-workflows/.github/workflows/dependency-review.yml@main

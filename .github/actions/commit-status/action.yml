@@ -1,0 +1,67 @@
+name: Commit Status
+description: Creates a commit status for a given commit SHA
+
+permissions:
+  contents: read
+  statuses: write
+
+inputs:
+  state:
+    description: The state of the commit status (e.g., success, failure, error)
+    required: true
+    type: string
+  target_url:
+    description: The URL to associate with the commit status
+    required: false
+    type: string
+    default: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+  description:
+    description: A short description of the commit status
+    required: true
+    type: string
+  context:
+    description: The context of the commit status (e.g., "ProdSec - Code Scanning")
+    required: true
+    type: string
+
+runs:
+  using: composite
+  steps:
+    - name: Create commit status
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_EVENT_NAME: ${{ github.event_name }}
+        GITHUB_SHA: ${{ github.sha }}
+        GITHUB_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        INPUT_STATE: ${{ inputs.state }}
+        INPUT_TARGET_URL: ${{ inputs.target_url }}
+        INPUT_DESCRIPTION: ${{ inputs.description }}
+        INPUT_CONTEXT: ${{ inputs.context }}
+      run: |
+        if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+          export COMMIT_SHA="${GITHUB_HEAD_SHA}"
+        else
+          export COMMIT_SHA="${GITHUB_SHA}"
+        fi
+
+        echo "Creating commit status for ${COMMIT_SHA} with state ${INPUT_STATE}"
+        response=$(curl -s -w "\n%{http_code}" \
+          --url "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${COMMIT_SHA}" \
+          --header "Authorization: Bearer ${GITHUB_TOKEN}" \
+          --header "Accept: application/vnd.github+json" \
+          --header "X-GitHub-Api-Version: 2022-11-28" \
+          --header "Content-Type: application/json" \
+          -d "{\"state\":\"${INPUT_STATE}\",\"target_url\":\"${INPUT_TARGET_URL}\",\"description\":\"${INPUT_DESCRIPTION}\",\"context\":\"${INPUT_CONTEXT}\"}")
+
+        http_code=$(echo "$response" | tail -n1)
+        response_body=$(echo "$response" | sed '$d')
+        if [[ "$http_code" -ne 201 ]]; then
+          echo "ERROR: Commit status API request failed with HTTP status ${http_code}"
+          echo "Response body: ${response_body}"
+          exit 1
+        fi
+
+        echo "Commit status created successfully for ${COMMIT_SHA} with state ${INPUT_STATE}"
+        echo "Response: ${response_body}"

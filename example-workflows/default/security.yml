@@ -1,0 +1,20 @@
+
+name: Security
+# Slack: #help-product-security
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  code-scanning:
+    uses: braintree/security-workflows/.github/workflows/codeql.yml@main
+    with:
+      language: python
+
+  dependency-review:
+    if: ${{ github.event_name == 'pull_request' }}
+    uses: braintree/security-workflows/.github/workflows/dependency-review.yml@main
