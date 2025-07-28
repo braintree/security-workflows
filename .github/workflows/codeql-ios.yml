@@ -85,7 +85,7 @@ jobs:
           upload: failure-only
 
       - name: Process & Upload SARIF
-        uses: PayPal-Venmo/security-workflows/.github/actions/upload-sarif@main
+        uses: braintree/security-workflows/.github/actions/upload-sarif@main
         with:
           sarif_dir: ${{ env.CODEQL_ACTION_SARIF_RESULTS_OUTPUT_DIR }}
           filter_patterns: ${{ inputs.filter-patterns }}
