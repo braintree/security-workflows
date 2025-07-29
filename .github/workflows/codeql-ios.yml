@@ -62,6 +62,9 @@ jobs:
             "-clonedSourcePackagesDirPath SourcePackages"
             "-disableAutomaticPackageResolution"
             "-scmProvider system"
+            "CODE_SIGN_IDENTITY="
+            "CODESIGNING_REQUIRED=NO"
+            "CODE_SIGNING_ALLOWED=NO"
           )
           
           if [[ -n "${{ inputs.workspace }}" ]]; then
