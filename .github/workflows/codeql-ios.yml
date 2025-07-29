@@ -1,0 +1,93 @@
+name: CodeQL (iOS)
+
+on:
+  workflow_call:
+    inputs:
+      project:
+        description: 'xcodebuild project arg'
+        required: true
+        type: string
+      scheme:
+        description: 'xcodebuild scheme arg'
+        required: true
+        type: string
+      workspace:
+        description: 'Optional xcodebuild workspace arg'
+        required: false
+        type: string
+      filter-patterns:
+        description: 'Optional comma-separated list of filter patterns'
+        required: false
+        type: string
+
+permissions:
+  security-events: write
+  # required to fetch internal or private CodeQL packs
+  packages: read
+  actions: read
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  code-scanning:
+    name: Code Scanning
+    runs-on: macOS-14-xlarge
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+
+    steps:     
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Resolve SPM Dependencies
+        run: swift package resolve
+             
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
+        with:
+          languages: swift
+          build-mode: manual
+
+      - name: Build
+        run: |
+          args=(
+            "-configuration Debug"
+            "-project ${{ inputs.project }}"
+            "-scheme ${{ inputs.scheme }}"
+            "-derivedDataPath '${GITHUB_WORKSPACE}/DerivedData'"
+            "-clonedSourcePackagesDirPath SourcePackages"
+            "-disableAutomaticPackageResolution"
+            "-scmProvider system"
+            "CODE_SIGN_IDENTITY="
+            "CODESIGNING_REQUIRED=NO"
+            "CODE_SIGNING_ALLOWED=NO"
+          )
+          
+          if [[ -n "${{ inputs.workspace }}" ]]; then
+            args+=("-workspace ${{ inputs.workspace }}")
+          fi
+         
+          args+=("clean")
+          args+=("build")
+          
+          build_cmd="xcodebuild ${args[*]}"
+          echo "${build_cmd}"
+          eval "${build_cmd}"
+               
+      - name: Perform CodeQL Analysis
+        id: codeql
+        uses: github/codeql-action/analyze@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
+        with:
+          category: "/language:swift"
+          output: sarif-results
+          upload: failure-only
+
+      - name: Process & Upload SARIF
+        uses: braintree/security-workflows/.github/actions/upload-sarif@main
+        with:
+          sarif_dir: ${{ env.CODEQL_ACTION_SARIF_RESULTS_OUTPUT_DIR }}
+          filter_patterns: ${{ inputs.filter-patterns }}
