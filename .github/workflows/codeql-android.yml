@@ -46,7 +46,7 @@ defaults:
 jobs:
   code-scanning:
     name: Code Scanning
-    runs-on: ${{ inputs.runner }}
+    runs-on: ubuntu-latest
     timeout-minutes: ${{ inputs.timeout-minutes }}
     strategy:
       fail-fast: false
