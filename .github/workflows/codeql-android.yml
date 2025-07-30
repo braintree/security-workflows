@@ -8,29 +8,6 @@ on:
         required: false
         default: 17
         type: number
-      build-command:
-        description: 'Optional application build command'
-        required: false
-        type: string
-      project-root:
-        description: 'Optional path to the project root directory'
-        required: false
-        type: string
-        default: './'
-      filter-patterns:
-        description: 'Optional comma-separated list of filter patterns'
-        required: false
-        type: string
-      runner:
-        description: 'Optional override for actions runner'
-        required: false
-        default: ci-large
-        type: string
-      timeout-minutes:
-        description: 'Optional override for larger builds'
-        required: false
-        default: 30
-        type: number
 
 permissions:
   security-events: write
@@ -47,15 +24,11 @@ jobs:
   code-scanning:
     name: Code Scanning
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ inputs.timeout-minutes }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
 
     steps:
-      - name: Capture start time
-        run: echo "start_time=$(date +%s)" >> $GITHUB_ENV
-        shell: bash
-
       - name: Checkout Repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
@@ -70,38 +43,17 @@ jobs:
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
-        env:
-          CODEQL_RAM: ${{ inputs.runner == 'ci-super-large' && 16384 || '' }}
         with:
           languages: java-kotlin
           build-mode: manual
 
       - name: Gradle Build
-        run: |
-          cd ${{ inputs.project-root }}
-          
+        run: |          
           args=(
             "--no-daemon --no-build-cache --parallel"
-            "-Pgradle.mode.ci=true"
+            "clean assembleDebug"
+            "-x test -x lint"
           )
-
-          if [[ ${{ inputs.runner }} == "ci-super-large" ]]; then
-            # Client VM (Gradle wrapper)
-            export GRADLE_OPTS="-Xms512m -Xmx1g"
-
-            # Build VM (Gradle daemon)
-            args+=("-Dorg.gradle.jvmargs='-Xmx24g -Xms24g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError'")
-
-            args+=("-Pkotlin.daemon.jvmargs='-Xms8g -Xmx16g'")
-          fi
-
-          if [[ -n "${{ inputs.build-command }}" ]]; then
-            args+=("${{ inputs.build-command }}")
-          else
-            args+=("clean assembleDebug")
-          fi
-
-          args+=("-x test -x lint")
 
           build_cmd="./gradlew ${args[*]}"
           echo "${build_cmd}"
@@ -119,4 +71,3 @@ jobs:
         uses: braintree/security-workflows/.github/actions/upload-sarif@main
         with:
           sarif_dir: ${{ env.CODEQL_ACTION_SARIF_RESULTS_OUTPUT_DIR }}
-          filter_patterns: ${{ inputs.filter-patterns }}
