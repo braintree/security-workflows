@@ -102,8 +102,9 @@ jobs:
           args+=("clean")
           args+=("build")
           
-          echo "Building with sanitized inputs..."
-          xcodebuild "${args[@]}"
+          build_cmd="xcodebuild ${args[*]}"
+          echo "${build_cmd}"
+          eval "${build_cmd}"
                
       - name: Perform CodeQL Analysis
         id: codeql
