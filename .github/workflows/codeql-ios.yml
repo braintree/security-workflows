@@ -42,6 +42,34 @@ jobs:
     steps:     
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      
+      #ADD INPUT VALIDATION SCRIPT
+      - name: Validate inputs
+        shell: python
+        env:
+          PROJECT: ${{ inputs.project }}
+          SCHEME: ${{ inputs.scheme }}
+          WORKSPACE: ${{ inputs.workspace }}
+        run: |
+          import os, sys
+
+          ALLOWED_PROJECTS = ("SampleApps/SPMTest/SPMTest.xcodeproj",)
+          ALLOWED_SCHEMES = ("SPMTest",)
+          ALLOWED_WORKSPACES = ("Braintree.xcworkspace",)
+
+          project = os.getenv("PROJECT")
+          scheme = os.getenv("SCHEME")
+          workspace = os.getenv("WORKSPACE")
+
+          if project not in ALLOWED_PROJECTS:
+              raise SystemExit(f"Invalid project: {project}. Allowed: {ALLOWED_PROJECTS}")
+          if scheme not in ALLOWED_SCHEMES:
+              raise SystemExit(f"Invalid scheme: {scheme}. Allowed: {ALLOWED_SCHEMES}")
+          if workspace and workspace not in ALLOWED_WORKSPACES:
+              raise SystemExit(f"Invalid workspace: {workspace}. Allowed: {ALLOWED_WORKSPACES}")
+
+          print("Inputs validated successfully.")
+
 
       - name: Resolve SPM Dependencies
         run: swift package resolve
