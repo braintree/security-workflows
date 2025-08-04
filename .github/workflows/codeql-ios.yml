@@ -96,7 +96,6 @@ jobs:
             "-scheme ${{ inputs.scheme }}"
             "-derivedDataPath '${GITHUB_WORKSPACE}/DerivedData'"
             "-clonedSourcePackagesDirPath SourcePackages"
-            "-disableAutomaticPackageResolution"
             "-scmProvider system"
             "-sdk iphonesimulator"
             "-destination 'platform=iOS Simulator,name=iPhone 15,OS=17.5'"
