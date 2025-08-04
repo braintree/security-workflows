@@ -53,9 +53,9 @@ jobs:
         run: |
           import os, sys
 
-          ALLOWED_PROJECTS = ("SampleApps/SPMTest/SPMTest.xcodeproj",)
-          ALLOWED_SCHEMES = ("SPMTest",)
-          ALLOWED_WORKSPACES = ("Braintree.xcworkspace",)
+          ALLOWED_PROJECTS = ("SampleApps/SPMTest/SPMTest.xcodeproj", "Demo/Demo.xcodeproj")
+          ALLOWED_SCHEMES = ("SPMTest", "Demo")
+          ALLOWED_WORKSPACES = ("Braintree.xcworkspace", "Demo.xcworkspace")
 
           project = os.getenv("PROJECT")
           scheme = os.getenv("SCHEME")
