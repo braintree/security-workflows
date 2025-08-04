@@ -70,6 +70,11 @@ jobs:
 
           print("Inputs validated successfully.")
 
+      - name: Install CocoaPods dependencies
+        run: |
+          cd Demo
+          pod install
+
       - name: Resolve SPM packages via xcodebuild
         run: |
           xcodebuild \
