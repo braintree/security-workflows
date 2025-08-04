@@ -78,11 +78,9 @@ jobs:
 
       - name: Resolve Swift Packages
         run: |
-          if [[ -n "${{ inputs.workspace }}" ]]; then
-            xcodebuild -resolvePackageDependencies -workspace "${{ inputs.workspace }}" -scheme "${{ inputs.scheme }}"
-          else
-            xcodebuild -resolvePackageDependencies -project "${{ inputs.project }}" -scheme "${{ inputs.scheme }}"
-          fi
+          cd Demo
+          swift package resolve
+          cd ..
              
       - name: Initialize CodeQL
         uses: github/codeql-action/init@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
