@@ -73,13 +73,16 @@ jobs:
       - name: Install CocoaPods dependencies
         run: |
           cd Demo
-          pod install
+          pod install --repo-update
+          cd ..
 
-      - name: Resolve SPM packages via xcodebuild
+      - name: Resolve Swift Packages
         run: |
-          xcodebuild \
-            -resolvePackageDependencies \
-            -project Demo/Demo.xcodeproj
+          if [[ -n "${{ inputs.workspace }}" ]]; then
+            xcodebuild -resolvePackageDependencies -workspace "${{ inputs.workspace }}" -scheme "${{ inputs.scheme }}"
+          else
+            xcodebuild -resolvePackageDependencies -project "${{ inputs.project }}" -scheme "${{ inputs.scheme }}"
+          fi
              
       - name: Initialize CodeQL
         uses: github/codeql-action/init@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
