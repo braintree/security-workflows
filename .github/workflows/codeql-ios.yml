@@ -70,6 +70,12 @@ jobs:
 
           print("Inputs validated successfully.")
 
+      - name: Place Package.resolved where Xcode expects it
+        run: |
+          RESOLVED_PATH="Package.resolved"
+          WORKSPACE_DIR="Demo.xcworkspace/project.xcworkspace/xcshareddata/swiftpm"
+          mkdir -p "$WORKSPACE_DIR"
+          cp "$RESOLVED_PATH" "$WORKSPACE_DIR/Package.resolved"
 
       - name: Resolve SPM Dependencies
         run: swift package resolve
