@@ -70,15 +70,11 @@ jobs:
 
           print("Inputs validated successfully.")
 
-      - name: Place Package.resolved where Xcode expects it
+      - name: Resolve SPM packages via xcodebuild
         run: |
-          RESOLVED_PATH="Package.resolved"
-          WORKSPACE_DIR="Demo.xcworkspace/project.xcworkspace/xcshareddata/swiftpm"
-          mkdir -p "$WORKSPACE_DIR"
-          cp "$RESOLVED_PATH" "$WORKSPACE_DIR/Package.resolved"
-
-      - name: Resolve SPM Dependencies
-        run: swift package resolve
+          xcodebuild \
+            -resolvePackageDependencies \
+            -project Braintree.xcodeproj
              
       - name: Initialize CodeQL
         uses: github/codeql-action/init@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
