@@ -92,7 +92,6 @@ jobs:
         run: |
           args=(
             "-configuration Debug"
-            "-project ${{ inputs.project }}"
             "-workspace ${{ inputs.workspace }}"
             "-scheme ${{ inputs.scheme }}"
             "-derivedDataPath '${GITHUB_WORKSPACE}/DerivedData'"
