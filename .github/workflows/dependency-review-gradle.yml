@@ -33,7 +33,6 @@ jobs:
           state: pending
           description: 'Dependency review in progress'
           context: ${{ env.STATUS_NAME }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Checkout Repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -47,11 +46,6 @@ jobs:
       - name: Generate and submit dependency graph
         id: dependabot
         uses: gradle/actions/dependency-submission@06832c7b30a0129d7fb559bcc6e43d26f6374244
-        with:
-          additional-arguments: -Pgradle.mode.ci=true
-        env:
-          ARTIFACTORY_USERNAME: ${{ env.BUILD_ARTIFACTORY_FND_CI_USERNAME }}
-          ARTIFACTORY_PASSWORD: ${{ env.BUILD_ARTIFACTORY_FND_CI_PASSWORD }}
 
       - name: Dependency Review
         if: ${{ github.event_name == 'pull_request' }}
@@ -63,23 +57,6 @@ jobs:
           show-openssf-scorecard: false
           license-check: false
 
-          # PayPal Open Source Policy
-          # https://paypal.service-now.com/policyportal?sys_kb_id=efdbe7548748ce58cec27408dabb35d4&id=kb_article_view&sysparm_rank=6&sysparm_tsqueryId=04af83d697399a50f86c3aa71153af64
-          # allow-licenses:
-          #   - BSD-2-Clause
-          #   - BSD-3-Clause
-          #   - MIT
-          #   - Apache-2.0
-          # https://github.com/actions/dependency-review-action?tab=readme-ov-file#configuration-options
-          # deny-licenses:
-          #   - LGPL-2.0
-          #   - BSD-2-Clause        
-          # allow-ghsas:
-          #   - GHSA-abcd-1234-5679
-          #   - GHSA-efgh-1234-5679
-          # deny-packages:
-          #   - pkg:gem/ruby-advisory-db-check@0.12.4
-
       - name: Update commit status
         if: always()
         uses: braintree/security-workflows/.github/actions/commit-status@main
@@ -87,4 +64,3 @@ jobs:
           state: ${{ job.status == 'success' && 'success' || 'failure' }}
           description: ${{ job.status == 'success' && 'Dependency review completed successfully.' || 'Dependency review failed.' }}
           context: ${{ env.STATUS_NAME }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
