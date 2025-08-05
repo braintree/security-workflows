@@ -5,7 +5,7 @@ on:
     inputs:
       project:
         description: 'xcodebuild project arg'
-        required: true
+        required: false
         type: string
       scheme:
         description: 'xcodebuild scheme arg'
@@ -92,7 +92,6 @@ jobs:
         run: |
           args=(
             "-configuration Debug"
-            "-workspace ${{ inputs.workspace }}"
             "-scheme ${{ inputs.scheme }}"
             "-derivedDataPath '${GITHUB_WORKSPACE}/DerivedData'"
             "-clonedSourcePackagesDirPath SourcePackages"
@@ -104,6 +103,10 @@ jobs:
             "CODE_SIGNING_ALLOWED=NO"
           )
          
+          if [[ -n "${{ inputs.workspace }}" ]]; then
+            args+=("-workspace ${{ inputs.workspace }}")
+          fi
+
           args+=("clean")
           args+=("build")
           
