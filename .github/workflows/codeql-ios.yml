@@ -5,7 +5,7 @@ on:
     inputs:
       project:
         description: 'xcodebuild project arg'
-        required: true
+        required: false
         type: string
       scheme:
         description: 'xcodebuild scheme arg'
@@ -53,8 +53,8 @@ jobs:
         run: |
           import os, sys
 
-          ALLOWED_PROJECTS = ("SampleApps/SPMTest/SPMTest.xcodeproj",)
-          ALLOWED_SCHEMES = ("SPMTest",)
+          ALLOWED_PROJECTS = ("Demo/Demo.xcodeproj",)
+          ALLOWED_SCHEMES = ("Demo",)
           ALLOWED_WORKSPACES = ("Braintree.xcworkspace",)
 
           project = os.getenv("PROJECT")
@@ -70,9 +70,17 @@ jobs:
 
           print("Inputs validated successfully.")
 
+      - name: Install CocoaPods dependencies
+        run: |
+          cd Demo
+          pod install --repo-update
+          cd ..
 
-      - name: Resolve SPM Dependencies
-        run: swift package resolve
+      - name: Resolve Swift Packages
+        run: |
+          cd Demo
+          swift package resolve
+          cd ..
              
       - name: Initialize CodeQL
         uses: github/codeql-action/init@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
@@ -84,21 +92,21 @@ jobs:
         run: |
           args=(
             "-configuration Debug"
-            "-project ${{ inputs.project }}"
             "-scheme ${{ inputs.scheme }}"
             "-derivedDataPath '${GITHUB_WORKSPACE}/DerivedData'"
             "-clonedSourcePackagesDirPath SourcePackages"
-            "-disableAutomaticPackageResolution"
             "-scmProvider system"
+            "-sdk iphonesimulator"
+            "-destination 'platform=iOS Simulator,name=iPhone 15,OS=17.5'"
             "CODE_SIGN_IDENTITY="
             "CODESIGNING_REQUIRED=NO"
             "CODE_SIGNING_ALLOWED=NO"
           )
-          
+         
           if [[ -n "${{ inputs.workspace }}" ]]; then
             args+=("-workspace ${{ inputs.workspace }}")
           fi
-         
+
           args+=("clean")
           args+=("build")
           
