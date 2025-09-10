@@ -51,22 +51,21 @@ jobs:
           SCHEME: ${{ inputs.scheme }}
           WORKSPACE: ${{ inputs.workspace }}
         run: |
-          import os, sys
+          import os, sys, re
 
-          ALLOWED_PROJECTS = ("Demo/Demo.xcodeproj",)
-          ALLOWED_SCHEMES = ("Demo",)
-          ALLOWED_WORKSPACES = ("Braintree.xcworkspace",)
+          def is_valid_param(param: str) -> bool:
+            return bool(re.fullmatch(r'[A-Za-z./]+', param))
 
           project = os.getenv("PROJECT")
           scheme = os.getenv("SCHEME")
           workspace = os.getenv("WORKSPACE")
 
-          if project not in ALLOWED_PROJECTS:
-              raise SystemExit(f"Invalid project: {project}. Allowed: {ALLOWED_PROJECTS}")
-          if scheme not in ALLOWED_SCHEMES:
-              raise SystemExit(f"Invalid scheme: {scheme}. Allowed: {ALLOWED_SCHEMES}")
-          if workspace and workspace not in ALLOWED_WORKSPACES:
-              raise SystemExit(f"Invalid workspace: {workspace}. Allowed: {ALLOWED_WORKSPACES}")
+          if project not is_valid_param(project):
+              raise SystemExit(f"Invalid project: {project}")
+          if scheme not is_valid_param(scheme):
+              raise SystemExit(f"Invalid scheme: {scheme}")
+          if workspace and not is_valid_param(workspace):
+              raise SystemExit(f"Invalid workspace: {workspace}")
 
           print("Inputs validated successfully.")
 
