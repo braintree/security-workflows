@@ -60,11 +60,11 @@ jobs:
           scheme = os.getenv("SCHEME")
           workspace = os.getenv("WORKSPACE")
 
-          if project not is_valid_param(project):
+          if not is_valid_param(project):
               raise SystemExit(f"Invalid project: {project}")
-          if scheme not is_valid_param(scheme):
+          if not is_valid_param(scheme):
               raise SystemExit(f"Invalid scheme: {scheme}")
-          if workspace and not is_valid_param(workspace):
+          if and not is_valid_param(workspace):
               raise SystemExit(f"Invalid workspace: {workspace}")
 
           print("Inputs validated successfully.")
