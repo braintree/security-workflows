@@ -64,7 +64,7 @@ jobs:
               raise SystemExit(f"Invalid project: {project}")
           if not is_valid_param(scheme):
               raise SystemExit(f"Invalid scheme: {scheme}")
-          if and not is_valid_param(workspace):
+          if not is_valid_param(workspace):
               raise SystemExit(f"Invalid workspace: {workspace}")
 
           print("Inputs validated successfully.")
