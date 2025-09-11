@@ -70,6 +70,7 @@ jobs:
           print("Inputs validated successfully.")
 
       - name: Install CocoaPods dependencies
+        if: ${{ hashFiles('Demo/Podfile.lock') != '' }}
         run: |
           cd Demo
           pod install --repo-update
