@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       project:
-        description: 'xcodebuild project arg'
+        description: 'xcodebuild project arg (not used when workspace is set)'
         required: false
         type: string
       scheme:
@@ -12,8 +12,8 @@ on:
         required: true
         type: string
       workspace:
-        description: 'Optional xcodebuild workspace arg'
-        required: false
+        description: 'xcodebuild workspace arg'
+        required: true
         type: string
       filter-patterns:
         description: 'Optional comma-separated list of filter patterns'
@@ -22,7 +22,6 @@ on:
 
 permissions:
   security-events: write
-  # required to fetch internal or private CodeQL packs
   packages: read
   actions: read
   contents: read
@@ -34,16 +33,22 @@ defaults:
 jobs:
   code-scanning:
     name: Code Scanning
-    runs-on: macOS-14-xlarge
+    runs-on: macos-14
     timeout-minutes: 30
     strategy:
       fail-fast: false
 
-    steps:     
+    steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      
-      #ADD INPUT VALIDATION SCRIPT
+        uses: actions/checkout@v4
+
+      # Ensure a known-good toolchain for this repo (Xcode 15.x required by Drop-in)
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '15.4'
+
+      # Input validation: Demo scheme + BraintreeDropIn.xcworkspace
       - name: Validate inputs
         shell: python
         env:
@@ -51,43 +56,52 @@ jobs:
           SCHEME: ${{ inputs.scheme }}
           WORKSPACE: ${{ inputs.workspace }}
         run: |
-          import os, sys, re
-
-          def is_valid_param(param: str) -> bool:
-            return bool(re.fullmatch(r'[A-Za-z./]+', param))
+          import os, sys
+          allowed_schemes = ("Demo", "BraintreeDropIn")  # allow library-only builds too
+          allowed_workspaces = ("BraintreeDropIn.xcworkspace",)
+          allowed_projects = ("Demo.xcodeproj", "BraintreeDropIn.xcodeproj", "", None)
 
           project = os.getenv("PROJECT")
           scheme = os.getenv("SCHEME")
           workspace = os.getenv("WORKSPACE")
 
-          if not is_valid_param(project):
-              raise SystemExit(f"Invalid project: {project}")
-          if not is_valid_param(scheme):
-              raise SystemExit(f"Invalid scheme: {scheme}")
-          if not is_valid_param(workspace):
-              raise SystemExit(f"Invalid workspace: {workspace}")
+          if scheme not in allowed_schemes:
+              raise SystemExit(f"Invalid scheme: {scheme}. Allowed: {allowed_schemes}")
+          if workspace not in allowed_workspaces:
+              raise SystemExit(f"Invalid workspace: {workspace}. Allowed: {allowed_workspaces}")
+          if project not in allowed_projects:
+              raise SystemExit(f"Invalid project: {project}. Allowed: {allowed_projects}")
 
           print("Inputs validated successfully.")
 
-      - name: Install CocoaPods dependencies
-        if: ${{ hashFiles('Demo/Podfile.lock') != '' }}
-        run: |
-          cd Demo
-          pod install --repo-update
-          cd ..
+      # Optional cache to speed SPM fetches
+      - name: Cache SwiftPM
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.swiftpm
+            ~/Library/Caches/org.swift.swiftpm
+            ${{ github.workspace }}/DerivedData/SourcePackages
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-
 
-      - name: Resolve Swift Packages
+      # 1) Resolve Swift packages for the SAME DerivedData/SourcePackages paths we will build with
+      - name: Resolve Swift Packages (Xcode)
         run: |
-          cd Demo
-          swift package resolve
-          cd ..
-             
+          xcodebuild -resolvePackageDependencies \
+            -workspace "${{ inputs.workspace }}" \
+            -scheme "${{ inputs.scheme }}" \
+            -derivedDataPath "${{ github.workspace }}/DerivedData" \
+            -clonedSourcePackagesDirPath SourcePackages
+
+      # 2) Initialize CodeQL in manual mode (Swift requires a manual build in many cases)
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
+        uses: github/codeql-action/init@v3
         with:
           languages: swift
           build-mode: manual
 
+      # 3) Build under CodeQL so extraction happens
       - name: Build
         run: |
           args=(
@@ -97,26 +111,20 @@ jobs:
             "-clonedSourcePackagesDirPath SourcePackages"
             "-scmProvider system"
             "-sdk iphonesimulator"
-            "-destination 'platform=iOS Simulator,name=iPhone 15,OS=17.5'"
+            "-destination 'platform=iOS Simulator,name=iPhone 15'"
             "CODE_SIGN_IDENTITY="
             "CODESIGNING_REQUIRED=NO"
             "CODE_SIGNING_ALLOWED=NO"
+            "-workspace ${{ inputs.workspace }}"
+            "clean"
+            "build"
           )
-         
-          if [[ -n "${{ inputs.workspace }}" ]]; then
-            args+=("-workspace ${{ inputs.workspace }}")
-          fi
+          echo "xcodebuild ${args[*]}"
+          eval "xcodebuild ${args[*]}"
 
-          args+=("clean")
-          args+=("build")
-          
-          build_cmd="xcodebuild ${args[*]}"
-          echo "${build_cmd}"
-          eval "${build_cmd}"
-               
       - name: Perform CodeQL Analysis
         id: codeql
-        uses: github/codeql-action/analyze@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
+        uses: github/codeql-action/analyze@v3
         with:
           category: "/language:swift"
           output: sarif-results
@@ -126,4 +134,4 @@ jobs:
         uses: braintree/security-workflows/.github/actions/upload-sarif@main
         with:
           sarif_dir: ${{ env.CODEQL_ACTION_SARIF_RESULTS_OUTPUT_DIR }}
-          filter_patterns: ${{ inputs.filter-patterns }}
+          filter_patterns: ${{ inputs['filter-patterns'] }}
