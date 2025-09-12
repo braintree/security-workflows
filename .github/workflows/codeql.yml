@@ -1,98 +1,162 @@
-name: Code Scanning
+  name: CodeQL (iOS)
 
-on:
-  workflow_call:
-    inputs:
-      language:
-        description: 'Language to analyze with CodeQL'
-        required: true
-        type: string
-      build-command:
-        description: 'Optional application build command'
-        required: false
-        type: string
-      filter-patterns:
-        description: 'Optional comma-separated list of filter patterns'
-        required: false
-        type: string
-      timeout-minutes:
-        description: 'Optional override for larger builds'
-        required: false
-        default: 20
-        type: number
+  on:
+    workflow_call:
+      inputs:
+        project:
+          description: 'xcodebuild project arg'
+          required: false
+          type: string
+        scheme:
+          description: 'xcodebuild scheme arg'
+          required: true
+          type: string
+        workspace:
+          description: 'Optional xcodebuild workspace arg'
+          required: false
+          type: string
+        filter-patterns:
+          description: 'Optional comma-separated list of filter patterns'
+          required: false
+          type: string
+        repository-type:
+          description: 'Repository type: "braintree_ios" or "braintree-ios-drop-in"'
+          required: false
+          type: string
+          default: "braintree_ios"
 
-permissions:
-  security-events: write
-  # required to fetch internal or private CodeQL packs
-  packages: read
-  actions: read
-  contents: read
+  permissions:
+    security-events: write
+    # required to fetch internal or private CodeQL packs
+    packages: read
+    actions: read
+    contents: read
 
-defaults:
-  run:
-    shell: bash
+  defaults:
+    run:
+      shell: bash
 
-jobs:
-  code-scanning:
-    name: Code Scanning
-    runs-on: ubuntu-latest
-    timeout-minutes: ${{ inputs.timeout-minutes }}
-    strategy:
-      fail-fast: false
+  jobs:
+    code-scanning:
+      name: Code Scanning
+      runs-on: macOS-14-xlarge
+      timeout-minutes: 30
+      strategy:
+        fail-fast: false
 
-    steps:
-      - name: Capture start time
-        run: echo "start_time=$(date +%s)" >> $GITHUB_ENV
-        shell: bash
+      steps:
+        - name: Checkout
+          uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-      - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        - name: Validate inputs
+          shell: python
+          env:
+            PROJECT: ${{ inputs.project }}
+            SCHEME: ${{ inputs.scheme }}
+            WORKSPACE: ${{ inputs.workspace }}
+            REPOSITORY_TYPE: ${{ inputs.repository-type }}
+          run: |
+            import os, sys
 
-      - name: Setup Node
-        if: ${{ inputs.language == 'javascript-typescript' || inputs.language == 'javascript' }}
-        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e
-        with:
-          node-version: 22
-    
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
-        with:
-          languages: ${{ inputs.language }}
-          build-mode: ${{ inputs.build-command != '' && 'manual' || 'none' }}
-          config: |
-            paths-ignore:
-              - fixtures
-              - spec
-              - sorbet
-              - linters
-              - '**/test_*.rb'
-            query-filters:
-              - exclude:
-                  id: js/disabling-certificate-validation
-              - exclude:
-                  id: py/hardcoded-credentials
-              - exclude:
-                  id: js/missing-rate-limiting
-              - exclude:
-                  id: py/request-without-cert-validation
-              - exclude:
-                  id: rb/request-without-cert-validation
-              
-      - name: Manual build 
-        if: ${{ inputs.build-command != '' }}
-        run: |
-          {{ inputs.build-command }}
+            # Combined list of allowed values for both repositories
+            ALLOWED_PROJECTS = ("Demo/Demo.xcodeproj", "BraintreeDropIn.xcodeproj")
+            ALLOWED_SCHEMES = ("Demo",)
+            ALLOWED_WORKSPACES = ("Braintree.xcworkspace", "BraintreeDropIn.xcworkspace")
+            ALLOWED_REPOSITORY_TYPES = ("braintree_ios", "braintree-ios-drop-in")
 
-      - name: Perform CodeQL Analysis
-        id: codeql
-        uses: github/codeql-action/analyze@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
-        with:
-          category: "/language:${{ inputs.language }}"
-          output: sarif-results
-          upload: failure-only
+            project = os.getenv("PROJECT")
+            scheme = os.getenv("SCHEME")
+            workspace = os.getenv("WORKSPACE")
+            repository_type = os.getenv("REPOSITORY_TYPE")
 
-      - name: Process & Upload SARIF
-        uses: braintree/security-workflows/.github/actions/upload-sarif@main
-        with:
-          sarif_dir: ${{ env.CODEQL_ACTION_SARIF_RESULTS_OUTPUT_DIR }}
-          filter_patterns: ${{ inputs.filter-patterns }}
+            if project and project not in ALLOWED_PROJECTS:
+                raise SystemExit(f"Invalid project: {project}. Allowed: {ALLOWED_PROJECTS}")
+            if scheme and scheme not in ALLOWED_SCHEMES:
+                raise SystemExit(f"Invalid scheme: {scheme}. Allowed: {ALLOWED_SCHEMES}")
+            if workspace and workspace not in ALLOWED_WORKSPACES:
+                raise SystemExit(f"Invalid workspace: {workspace}. Allowed: {ALLOWED_WORKSPACES}")
+            if repository_type and repository_type not in ALLOWED_REPOSITORY_TYPES:
+                raise SystemExit(f"Invalid repository type: {repository_type}. Allowed: {ALLOWED_REPOSITORY_TYPES}")
+
+            print("Inputs validated successfully.")
+
+        - name: Set up environment variables
+          id: setup-env
+          run: |
+            if [[ "${{ inputs.repository-type }}" == "braintree-ios-drop-in" ]]; then
+              echo "demo_dir=." >> $GITHUB_OUTPUT
+              echo "is_drop_in=true" >> $GITHUB_OUTPUT
+            else
+              echo "demo_dir=Demo" >> $GITHUB_OUTPUT
+              echo "is_drop_in=false" >> $GITHUB_OUTPUT
+            fi
+
+        - name: Install CocoaPods dependencies
+          if: inputs.repository-type == 'braintree_ios'
+          run: |
+            cd Demo
+            pod install --repo-update
+            cd ..
+
+        - name: Resolve Swift Packages for braintree_ios
+          if: inputs.repository-type == 'braintree_ios'
+          run: |
+            cd Demo
+            swift package resolve
+            cd ..
+
+        - name: Resolve Swift Packages for braintree-ios-drop-in
+          if: inputs.repository-type == 'braintree-ios-drop-in'
+          run: |
+            swift package resolve
+            xcodebuild -resolvePackageDependencies -workspace ${{ inputs.workspace }} -scheme ${{ inputs.scheme }}
+
+        - name: Initialize CodeQL
+          uses: github/codeql-action/init@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
+          with:
+            languages: swift
+            build-mode: manual
+
+        - name: Build
+          run: |
+            args=(
+              "-configuration Debug"
+              "-scheme ${{ inputs.scheme }}"
+              "-derivedDataPath '${GITHUB_WORKSPACE}/DerivedData'"
+              "-clonedSourcePackagesDirPath SourcePackages"
+              "-scmProvider system"
+              "-sdk iphonesimulator"
+              "-destination 'platform=iOS Simulator,name=iPhone 15,OS=17.5'"
+              "CODE_SIGN_IDENTITY="
+              "CODESIGNING_REQUIRED=NO"
+              "CODE_SIGNING_ALLOWED=NO"
+            )
+
+            if [[ -n "${{ inputs.workspace }}" ]]; then
+              args+=("-workspace ${{ inputs.workspace }}")
+            fi
+
+            if [[ -n "${{ inputs.project }}" ]]; then
+              args+=("-project ${{ inputs.project }}")
+            fi
+
+            args+=("clean")
+            args+=("build")
+
+            build_cmd="xcodebuild ${args[*]}"
+            echo "${build_cmd}"
+            eval "${build_cmd}"
+
+        - name: Perform CodeQL Analysis
+          id: codeql
+          uses: github/codeql-action/analyze@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
+          with:
+            category: "/language:swift"
+            output: sarif-results
+            upload: failure-only
+
+        - name: Process & Upload SARIF
+          uses: braintree/security-workflows/.github/actions/upload-sarif@main
+          with:
+            sarif_dir: ${{ env.CODEQL_ACTION_SARIF_RESULTS_OUTPUT_DIR }}
+            filter_patterns: ${{ inputs.filter-patterns }}
