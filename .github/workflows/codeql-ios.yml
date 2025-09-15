@@ -3,17 +3,13 @@ name: CodeQL (iOS)
 on:
   workflow_call:
     inputs:
-      project:
-        description: 'xcodebuild project arg (not used when workspace is set)'
+      workspace:
+        description: 'Optional override. Autodetected if empty.'
         required: false
         type: string
       scheme:
-        description: 'xcodebuild scheme arg'
-        required: true
-        type: string
-      workspace:
-        description: 'xcodebuild workspace arg'
-        required: true
+        description: 'Optional override. Defaults to Demo.'
+        required: false
         type: string
       filter-patterns:
         description: 'Optional comma-separated list of filter patterns'
@@ -22,64 +18,58 @@ on:
 
 permissions:
   security-events: write
-  packages: read
   actions: read
   contents: read
-
-defaults:
-  run:
-    shell: bash
+  packages: read
 
 jobs:
   code-scanning:
     name: Code Scanning
     runs-on: macos-14
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Ensure a known-good toolchain for this repo (Xcode 15.x required by Drop-in)
-      - name: Select Xcode
+      - name: Select Xcode (Swift 5.9+)
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: '15.4'
 
-      # Input validation: Demo scheme + BraintreeDropIn.xcworkspace
-      - name: Validate inputs
-        shell: python
-        env:
-          PROJECT: ${{ inputs.project }}
-          SCHEME: ${{ inputs.scheme }}
-          WORKSPACE: ${{ inputs.workspace }}
+      # Detect repo type + set workspace/scheme + whether to run CocoaPods
+      - name: Detect project
+        id: detect
         run: |
-          import os, sys
-          allowed_schemes = ("Demo", "BraintreeDropIn")  # allow library-only builds too
-          allowed_workspaces = ("BraintreeDropIn.xcworkspace", "Braintree.xcworkspace", "", None)
-          allowed_projects = ("Demo/Demo.xcodeproj", "Demo.xcodeproj", "BraintreeDropIn.xcodeproj", "", None)
+          WORKSPACE_INPUT="${{ inputs.workspace }}"
+          SCHEME_INPUT="${{ inputs.scheme }}"
+          if [[ -n "$WORKSPACE_INPUT" ]]; then
+            WORKSPACE="$WORKSPACE_INPUT"
+          elif [[ -e "Braintree.xcworkspace" ]]; then
+            # braintree_ios
+            WORKSPACE="Braintree.xcworkspace"
+            echo "NEEDS_PODS=true" >> "$GITHUB_ENV"
+          elif [[ -e "BraintreeDropIn.xcworkspace" ]]; then
+            # braintree-ios-drop-in
+            WORKSPACE="BraintreeDropIn.xcworkspace"
+            echo "NEEDS_PODS=false" >> "$GITHUB_ENV"
+          else
+            echo "No known workspace found"; exit 1
+          fi
 
-          project = os.getenv("PROJECT")
-          scheme = os.getenv("SCHEME")
-          workspace = os.getenv("WORKSPACE")
+          SCHEME="${SCHEME_INPUT:-Demo}"
 
-          if scheme not in allowed_schemes:
-              raise SystemExit(f"Invalid scheme: {scheme}. Allowed: {allowed_schemes}")
-          if workspace not in allowed_workspaces:
-              raise SystemExit(f"Invalid workspace: {workspace}. Allowed: {allowed_workspaces}")
-          if project not in allowed_projects:
-              raise SystemExit(f"Invalid project: {project}. Allowed: {allowed_projects}")
-
-          print("Inputs validated successfully.")
+          echo "WORKSPACE=$WORKSPACE" >> "$GITHUB_ENV"
+          echo "SCHEME=$SCHEME" >> "$GITHUB_ENV"
+          echo "Workspace: $WORKSPACE"
+          echo "Scheme: $SCHEME"
 
       # Only needed for braintree_ios Demo (CocoaPods)
       - name: Install CocoaPods (SDK demo)
         if: env.NEEDS_PODS == 'true'
         run: pod install
 
-      # Optional cache to speed SPM fetches
+      # Cache SwiftPM to speed up both repos
       - name: Cache SwiftPM
         uses: actions/cache@v4
         with:
@@ -90,45 +80,42 @@ jobs:
           key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
           restore-keys: ${{ runner.os }}-spm-
 
-      # 1) Resolve Swift packages for the SAME DerivedData/SourcePackages paths we will build with
-      - name: Resolve Swift Packages (Xcode)
+      # Resolve Swift packages for the chosen workspace/scheme
+      - name: Resolve Swift Packages
         run: |
           xcodebuild -resolvePackageDependencies \
-            -workspace "${{ inputs.workspace }}" \
-            -scheme "${{ inputs.scheme }}" \
-            -derivedDataPath "${{ github.workspace }}/DerivedData" \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
             -clonedSourcePackagesDirPath SourcePackages
 
-      # 2) Initialize CodeQL in manual mode (Swift requires a manual build in many cases)
-      - name: Initialize CodeQL
+      - name: Initialize CodeQL (manual)
         uses: github/codeql-action/init@v3
         with:
           languages: swift
           build-mode: manual
+          # optional inline "advanced" config:
+          # config: |
+          #   queries:
+          #     - uses: security-extended
+          #     - uses: security-and-quality
 
-      # 3) Build under CodeQL so extraction happens
-      - name: Build
+      - name: Build (under CodeQL)
         run: |
-          args=(
-            "-configuration Debug"
-            "-scheme ${{ inputs.scheme }}"
-            "-derivedDataPath '${GITHUB_WORKSPACE}/DerivedData'"
-            "-clonedSourcePackagesDirPath SourcePackages"
-            "-scmProvider system"
-            "-sdk iphonesimulator"
-            "-destination 'platform=iOS Simulator,name=iPhone 15'"
-            "CODE_SIGN_IDENTITY="
-            "CODESIGNING_REQUIRED=NO"
-            "CODE_SIGNING_ALLOWED=NO"
-            "-workspace ${{ inputs.workspace }}"
-            "clean"
-            "build"
-          )
-          echo "xcodebuild ${args[*]}"
-          eval "xcodebuild ${args[*]}"
+          set -o pipefail
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
+            -clonedSourcePackagesDirPath SourcePackages \
+            -scmProvider system \
+            CODE_SIGN_IDENTITY= CODESIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
+            clean build
 
-      - name: Perform CodeQL Analysis
-        id: codeql
+      - name: Analyze
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:swift"
@@ -140,3 +127,4 @@ jobs:
         with:
           sarif_dir: ${{ env.CODEQL_ACTION_SARIF_RESULTS_OUTPUT_DIR }}
           filter_patterns: ${{ inputs['filter-patterns'] }}
+          
