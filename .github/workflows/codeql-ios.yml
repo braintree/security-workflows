@@ -58,8 +58,8 @@ jobs:
         run: |
           import os, sys
           allowed_schemes = ("Demo", "BraintreeDropIn")  # allow library-only builds too
-          allowed_workspaces = ("BraintreeDropIn.xcworkspace", "Braintree.xcworkspace", "", None)
-          allowed_projects = ("Demo/Demo.xcodeproj", "Demo.xcodeproj", "BraintreeDropIn.xcodeproj", "", None)
+          allowed_workspaces = ("BraintreeDropIn.xcworkspace", "Braintree.xcworkspace", "PopupBridge.xcworkspace", "", None)
+          allowed_projects = ("Demo/Demo.xcodeproj", "Demo.xcodeproj", "BraintreeDropIn.xcodeproj", "PopupBridge.xcodeproj", "", None)
 
           project = os.getenv("PROJECT")
           scheme = os.getenv("SCHEME")
