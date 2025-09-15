@@ -76,10 +76,8 @@ jobs:
 
       - name: Install CocoaPods (Demo)
         run: |
-          if [ -d "Demo" ] && [ -f "Demo/Podfile" ]; then
-            cd Demo
+          if [ -f "Podfile.lock" ]; then
             pod install --repo-update
-            cd ..
           fi
 
       # Optional cache to speed SPM fetches
