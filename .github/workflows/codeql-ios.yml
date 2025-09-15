@@ -37,6 +37,32 @@ jobs:
         with:
           xcode-version: '15.4'
 
+      # Input validation: Demo scheme + BraintreeDropIn.xcworkspace
+      - name: Validate inputs
+        shell: python
+        env:
+          PROJECT: ${{ inputs.project }}
+          SCHEME: ${{ inputs.scheme }}
+          WORKSPACE: ${{ inputs.workspace }}
+        run: |
+          import os, sys
+          allowed_schemes = ("Demo", "BraintreeDropIn")  # allow library-only builds too
+          allowed_workspaces = ("BraintreeDropIn.xcworkspace", "Braintree.xcworkspace", "", None)
+          allowed_projects = ("Demo/Demo.xcodeproj", "Demo.xcodeproj", "BraintreeDropIn.xcodeproj", "", None)
+
+          project = os.getenv("PROJECT")
+          scheme = os.getenv("SCHEME")
+          workspace = os.getenv("WORKSPACE")
+
+          if scheme not in allowed_schemes:
+              raise SystemExit(f"Invalid scheme: {scheme}. Allowed: {allowed_schemes}")
+          if workspace not in allowed_workspaces:
+              raise SystemExit(f"Invalid workspace: {workspace}. Allowed: {allowed_workspaces}")
+          if project not in allowed_projects:
+              raise SystemExit(f"Invalid project: {project}. Allowed: {allowed_projects}")
+
+          print("Inputs validated successfully.")
+          
       # Detect repo type + set workspace/scheme + whether to run CocoaPods
       - name: Detect project
         id: detect
@@ -127,4 +153,3 @@ jobs:
         with:
           sarif_dir: ${{ env.CODEQL_ACTION_SARIF_RESULTS_OUTPUT_DIR }}
           filter_patterns: ${{ inputs['filter-patterns'] }}
-          
