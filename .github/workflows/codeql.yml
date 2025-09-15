@@ -1,24 +1,25 @@
-name: CodeQL (iOS)
+name: Code Scanning
 
 on:
   workflow_call:
     inputs:
-      project:
-        description: 'xcodebuild project arg'
-        required: false
-        type: string
-      scheme:
-        description: 'xcodebuild scheme arg'
+      language:
+        description: 'Language to analyze with CodeQL'
         required: true
         type: string
-      workspace:
-        description: 'Optional xcodebuild workspace arg'
+      build-command:
+        description: 'Optional application build command'
         required: false
         type: string
       filter-patterns:
         description: 'Optional comma-separated list of filter patterns'
         required: false
         type: string
+      timeout-minutes:
+        description: 'Optional override for larger builds'
+        required: false
+        default: 20
+        type: number
 
 permissions:
   security-events: write
@@ -34,92 +35,59 @@ defaults:
 jobs:
   code-scanning:
     name: Code Scanning
-    runs-on: macOS-14-xlarge
-    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     strategy:
       fail-fast: false
 
-    steps:     
-      - name: Checkout
+    steps:
+      - name: Capture start time
+        run: echo "start_time=$(date +%s)" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Checkout Repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      
-      #ADD INPUT VALIDATION SCRIPT
-      - name: Validate inputs
-        shell: python
-        env:
-          PROJECT: ${{ inputs.project }}
-          SCHEME: ${{ inputs.scheme }}
-          WORKSPACE: ${{ inputs.workspace }}
-        run: |
-          import os, sys, re
 
-          def is_valid_param(param: str) -> bool:
-            return bool(re.fullmatch(r'[A-Za-z./]+', param))
-
-          project = os.getenv("PROJECT")
-          scheme = os.getenv("SCHEME")
-          workspace = os.getenv("WORKSPACE")
-
-          if not is_valid_param(project):
-              raise SystemExit(f"Invalid project: {project}")
-          if not is_valid_param(scheme):
-              raise SystemExit(f"Invalid scheme: {scheme}")
-          if not is_valid_param(workspace):
-              raise SystemExit(f"Invalid workspace: {workspace}")
-
-          print("Inputs validated successfully.")
-
-      - name: Install CocoaPods dependencies
-        if: ${{ hashFiles('Demo/Podfile.lock') != '' }}
-        run: |
-          cd Demo
-          pod install --repo-update
-          cd ..
-
-      - name: Resolve Swift packages
-        run: |
-          xcodebuild -resolvePackageDependencies \
-          -workspace "${{ inputs.workspace }}" \
-          -scheme "${{ inputs.scheme }}"
-          
-             
+      - name: Setup Node
+        if: ${{ inputs.language == 'javascript-typescript' || inputs.language == 'javascript' }}
+        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e
+        with:
+          node-version: 22
+    
       - name: Initialize CodeQL
         uses: github/codeql-action/init@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
         with:
-          languages: swift
-          build-mode: manual
-
-      - name: Build
+          languages: ${{ inputs.language }}
+          build-mode: ${{ inputs.build-command != '' && 'manual' || 'none' }}
+          config: |
+            paths-ignore:
+              - fixtures
+              - spec
+              - sorbet
+              - linters
+              - '**/test_*.rb'
+            query-filters:
+              - exclude:
+                  id: js/disabling-certificate-validation
+              - exclude:
+                  id: py/hardcoded-credentials
+              - exclude:
+                  id: js/missing-rate-limiting
+              - exclude:
+                  id: py/request-without-cert-validation
+              - exclude:
+                  id: rb/request-without-cert-validation
+              
+      - name: Manual build 
+        if: ${{ inputs.build-command != '' }}
         run: |
-          args=(
-            "-configuration Debug"
-            "-scheme ${{ inputs.scheme }}"
-            "-derivedDataPath '${GITHUB_WORKSPACE}/DerivedData'"
-            "-clonedSourcePackagesDirPath SourcePackages"
-            "-scmProvider system"
-            "-sdk iphonesimulator"
-            "-destination 'platform=iOS Simulator,name=iPhone 15,OS=17.5'"
-            "CODE_SIGN_IDENTITY="
-            "CODESIGNING_REQUIRED=NO"
-            "CODE_SIGNING_ALLOWED=NO"
-          )
-         
-          if [[ -n "${{ inputs.workspace }}" ]]; then
-            args+=("-workspace ${{ inputs.workspace }}")
-          fi
+          {{ inputs.build-command }}
 
-          args+=("clean")
-          args+=("build")
-          
-          build_cmd="xcodebuild ${args[*]}"
-          echo "${build_cmd}"
-          eval "${build_cmd}"
-               
       - name: Perform CodeQL Analysis
         id: codeql
         uses: github/codeql-action/analyze@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
         with:
-          category: "/language:swift"
+          category: "/language:${{ inputs.language }}"
           output: sarif-results
           upload: failure-only
 
