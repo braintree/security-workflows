@@ -74,10 +74,13 @@ jobs:
 
           print("Inputs validated successfully.")
 
-      # Only needed for braintree_ios Demo (CocoaPods)
-      - name: Install CocoaPods (SDK demo)
-        if: env.NEEDS_PODS == 'true'
-        run: pod install
+      - name: Install CocoaPods (Demo)
+        run: |
+          if [ -d "Demo" ] && [ -f "Demo/Podfile" ]; then
+            cd Demo
+            pod install --repo-update
+            cd ..
+          fi
 
       # Optional cache to speed SPM fetches
       - name: Cache SwiftPM
