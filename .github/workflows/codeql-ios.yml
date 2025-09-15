@@ -74,6 +74,10 @@ jobs:
 
           print("Inputs validated successfully.")
 
+      - name: Force Swift version to 5.0 in Demo target
+        run: |
+          sed -i '' 's/SWIFT_VERSION = 6.0;/SWIFT_VERSION = 5.0;/g' Demo/Demo.xcodeproj/project.pbxproj
+
       - name: Install CocoaPods (Demo)
         run: |
           if [ -f "Podfile.lock" ]; then
