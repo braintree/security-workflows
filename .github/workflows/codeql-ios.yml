@@ -19,6 +19,10 @@ on:
         description: 'Optional comma-separated list of filter patterns'
         required: false
         type: string
+      mac-runner-version:
+        required: false
+        type: number
+        default: 14
 
 permissions:
   security-events: write
@@ -33,7 +37,7 @@ defaults:
 jobs:
   code-scanning:
     name: Code Scanning
-    runs-on: macos-14
+    runs-on: ${{ inputs.mac-runner-version == 15 && "macos-15-xlarge" || "macOS-14-xlarge" }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -42,11 +46,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Ensure a known-good toolchain for this repo (Xcode 15.x required by Drop-in)
-      - name: Select Xcode
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: '15.4'
+      - name: Select Xcode Version
+        run: |-
+          VERSION=${{ inputs.mac-runner-version == 15 && "16.4.0" || "15.0.1" }}
+          sudo xcode-select -switch /Applications/Xcode_${VERSION}.app
 
       # Input validation: Demo scheme + BraintreeDropIn.xcworkspace
       - name: Validate inputs
@@ -116,6 +119,7 @@ jobs:
       # 3) Build under CodeQL so extraction happens
       - name: Build
         run: |
+          IPHONE_VERSION=${{ inputs.mac-runner-version == 15 && "iPhone 16" || "iPhone 15" }}
           args=(
             "-configuration Debug"
             "-scheme ${{ inputs.scheme }}"
@@ -123,7 +127,7 @@ jobs:
             "-clonedSourcePackagesDirPath SourcePackages"
             "-scmProvider system"
             "-sdk iphonesimulator"
-            "-destination 'platform=iOS Simulator,name=iPhone 15'"
+            "-destination 'platform=iOS Simulator,name=iPhone ${IPHONE_VERSION}'"
             "CODE_SIGN_IDENTITY="
             "CODESIGNING_REQUIRED=NO"
             "CODE_SIGNING_ALLOWED=NO"
