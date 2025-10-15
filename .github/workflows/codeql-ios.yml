@@ -21,8 +21,8 @@ on:
         type: string
       mac-runner-version:
         required: false
-        type: number
-        default: 14
+        type: string
+        default: 'macos-14-xlarge'
 
 permissions:
   security-events: write
@@ -37,7 +37,7 @@ defaults:
 jobs:
   code-scanning:
     name: Code Scanning
-    runs-on: ${{ inputs.mac-runner-version == 15 && "macos-15-xlarge" || "macOS-14-xlarge" }}
+    runs-on: ${{ inputs.mac-runner-version }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -47,8 +47,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Select Xcode Version
-        run: |-
-          VERSION=${{ inputs.mac-runner-version == 15 && "16.4.0" || "15.0.1" }}
+        run: |
+          if [ "${{ inputs.mac-runner-version }}" = "15" ]; then
+            VERSION="16.4.0"
+          else
+            VERSION="15.0.1"
+          fi
           sudo xcode-select -switch /Applications/Xcode_${VERSION}.app
 
       # Input validation: Demo scheme + BraintreeDropIn.xcworkspace
@@ -119,7 +123,12 @@ jobs:
       # 3) Build under CodeQL so extraction happens
       - name: Build
         run: |
-          IPHONE_VERSION=${{ inputs.mac-runner-version == 15 && "iPhone 16" || "iPhone 15" }}
+          if [ "${{ inputs.mac-runner-version }}" = "15" ]; then
+            IPHONE_VERSION="iPhone 16"
+          else
+            IPHONE_VERSION="iPhone 15"
+          fi
+
           args=(
             "-configuration Debug"
             "-scheme ${{ inputs.scheme }}"
