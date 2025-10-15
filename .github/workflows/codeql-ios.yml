@@ -48,7 +48,7 @@ jobs:
 
       - name: Select Xcode Version
         run: |
-          if [ "${{ inputs.mac-runner-version }}" = "15" ]; then
+          if [ "${{ inputs.mac-runner-version }}" == "macos-15-xlarge" ]; then
             VERSION="16.4.0"
           else
             VERSION="15.0.1"
@@ -123,7 +123,7 @@ jobs:
       # 3) Build under CodeQL so extraction happens
       - name: Build
         run: |
-          if [ "${{ inputs.mac-runner-version }}" = "15" ]; then
+          if [ "${{ inputs.mac-runner-version }}" == "macos-15-xlarge" ]; then
             IPHONE_VERSION="iPhone 16"
           else
             IPHONE_VERSION="iPhone 15"
