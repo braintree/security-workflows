@@ -36,6 +36,7 @@ jobs:
           distribution: adopt
 
       - name: Generate and submit dependency graph
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
         id: dependabot
         uses: gradle/actions/dependency-submission@06832c7b30a0129d7fb559bcc6e43d26f6374244
 
