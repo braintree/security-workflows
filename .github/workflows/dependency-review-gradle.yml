@@ -20,12 +20,6 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - name: Capture start time
-        run: echo "start_time=$(date +%s)" >> $GITHUB_ENV
-        shell: bash
-
-      # Removed commit-status steps
-
       - name: Checkout Repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
@@ -36,7 +30,6 @@ jobs:
           distribution: adopt
 
       - name: Generate and submit dependency graph
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
         id: dependabot
         uses: gradle/actions/dependency-submission@06832c7b30a0129d7fb559bcc6e43d26f6374244
 
