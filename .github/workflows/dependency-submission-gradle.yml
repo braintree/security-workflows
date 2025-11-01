@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       java-version:
-        description: 'Optional Java version number'
+        description: 'Optional Java version number d'
         required: false
         default: 17
         type: number
