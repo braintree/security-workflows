@@ -10,7 +10,7 @@ on:
         type: number
 
 permissions:
-  contents: write          # needed for dependency submission API
+  contents: read          # needed for dependency submission API
   pull-requests: write     # needed because comment-summary-in-pr: always
 
 jobs:
