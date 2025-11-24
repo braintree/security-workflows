@@ -36,4 +36,4 @@ jobs:
         with:
           state: ${{ job.status == 'success' && 'success' || 'failure' }}
           description: ${{ job.status == 'success' && 'Dependency review completed successfully.' || 'Dependency review failed.' }}
-          context: ${{ env.STATUS_NAME }}
+          context: dependency-review
