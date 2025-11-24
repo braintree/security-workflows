@@ -6,6 +6,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  statuses: write
 
 jobs:
   dependency-review:
@@ -28,3 +29,11 @@ jobs:
           comment-summary-in-pr: always
           show-openssf-scorecard: false
           license-check: false
+
+      - name: Update commit status
+        if: always()
+        uses: braintree/security-workflows/.github/actions/commit-status@main
+        with:
+          state: ${{ job.status == 'success' && 'success' || 'failure' }}
+          description: ${{ job.status == 'success' && 'Dependency review completed successfully.' || 'Dependency review failed.' }}
+          context: dependency-review
