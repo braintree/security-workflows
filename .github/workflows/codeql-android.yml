@@ -12,9 +12,8 @@ on:
 permissions:
   security-events: write
   # required to fetch internal or private CodeQL packs
-  packages: read
-  actions: read
-  contents: read
+  # actions: read
+  contents: write
 
 defaults:
   run:
