@@ -17,11 +17,13 @@ permissions:
 jobs:
   dependency-review:
     name: Dependency Review
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
     steps:
       - name: Checkout Repository
+        if: github.event_name == 'pull_request'
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Setup Java
@@ -35,7 +37,7 @@ jobs:
         uses: gradle/actions/dependency-submission@06832c7b30a0129d7fb559bcc6e43d26f6374244
 
       - name: Dependency Review
-        if: ${{ github.event_name == 'pull_request' }}
+        if: github.event_name == 'pull_request'
         uses: actions/dependency-review-action@67d4f4bd7a9b17a0db54d2a7519187c65e339de8
         with:
           fail-on-severity: critical
