@@ -1,0 +1,49 @@
+name: "Code Scanning: GitHub Actions"
+on:
+  workflow_call:
+    inputs:
+      filter-patterns:
+        description: 'Optional comma-separated list of filter patterns'
+        required: false
+        type: string
+      timeout-minutes:
+        description: 'Optional override for larger builds'
+        required: false
+        default: 20
+        type: number
+permissions:
+  security-events: write
+  # required to fetch internal or private CodeQL packs
+  packages: read
+  actions: read
+  contents: read
+defaults:
+  run:
+    shell: bash
+jobs:
+  code-scanning:
+    name: Code Scanning
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    strategy:
+      fail-fast: false
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
+        with:
+          languages: actions
+          build-mode: none
+      - name: Perform CodeQL Analysis
+        id: codeql
+        uses: github/codeql-action/analyze@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
+        with:
+          category: "/language:actions"
+          output: sarif-results
+          upload: failure-only
+      - name: Process & Upload SARIF
+        uses: braintree/security-workflows/.github/actions/upload-sarif@main
+        with:
+          sarif_dir: ${{ env.CODEQL_ACTION_SARIF_RESULTS_OUTPUT_DIR }}
+          filter_patterns: ${{ inputs.filter-patterns }}
