@@ -44,7 +44,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Select Xcode Version
         run: |
@@ -95,7 +95,7 @@ jobs:
 
       # Optional cache to speed SPM fetches
       - name: Cache SwiftPM
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.swiftpm
@@ -115,7 +115,7 @@ jobs:
 
       # 2) Initialize CodeQL in manual mode (Swift requires a manual build in many cases)
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
         with:
           languages: swift
           build-mode: manual
@@ -149,7 +149,7 @@ jobs:
 
       - name: Perform CodeQL Analysis
         id: codeql
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
         with:
           category: "/language:swift"
           output: sarif-results
@@ -158,5 +158,5 @@ jobs:
       - name: Process & Upload SARIF
         uses: braintree/security-workflows/.github/actions/upload-sarif@main
         with:
-          sarif_dir: ${{ env.CODEQL_ACTION_SARIF_RESULTS_OUTPUT_DIR }}
+          sarif_dir: ${{ steps.codeql.outputs.sarif-output }}
           filter_patterns: ${{ inputs['filter-patterns'] }}
