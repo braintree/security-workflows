@@ -1,10 +1,6 @@
 name: Commit Status
 description: Creates a commit status for a given commit SHA
 
-permissions:
-  contents: read
-  statuses: write
-
 inputs:
   state:
     description: The state of the commit status (e.g., success, failure, error)
