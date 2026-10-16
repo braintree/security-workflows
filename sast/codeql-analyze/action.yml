@@ -1,0 +1,100 @@
+name: CodeQL Analyze
+description: Finalize CodeQL database, analyze, and upload results.
+
+inputs:
+  language:
+    description: >- 
+      The language for CodeQL to analyze.
+      https://docs.github.com/en/code-security/reference/code-scanning/workflow-configuration-options#languages-to-be-analyzed
+    required: true
+  ram:
+    description: >-
+      The amount of memory in MB that can be used by CodeQL for database finalization and query execution.
+      By default, this action will use the same amount of memory as previously set in the "init" action.
+      If the "init" action also does not have an explicit "ram" input, this action will use most of the
+      memory available in the system
+    required: false
+    default: ""
+  threads:
+    description: >-
+      The number of threads that can be used by CodeQL for database finalization and query execution.
+      By default, this action will use the same number of threads as previously set in the "init" action.
+      If the "init" action also does not have an explicit "threads" input, this action will use all the
+      hardware threads available in the system 
+    required: false
+    default: ""
+  filter-patterns:
+    description: >- 
+      Comma-separated list of glob patterns to the exclude from results.
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - name: Set category
+      id: category
+      shell: bash
+      run: |-
+        build_mode_none="javascript,python,ruby,rust,actions"
+        build_mode_manual="java,swift,csharp,go"
+
+        is_mode_none="false"
+        is_mode_manual="false"
+
+        if [[ ",$LANGUAGE," == *",$build_mode_none," ]]; then
+          is_mode_none="true"
+        elif [[ ",$LANGUAGE," == *",$build_mode_manual," ]]; then
+          is_mode_manual="true"
+        fi
+
+        if [[ "${is_mode_none}" == "false" && "${is_mode_manual}" == "false" ]]; then
+          echo "invalid language" >&2
+          exit 1
+        fi
+
+        category="/language:${LANGUAGE}"
+        echo "category=${category}" >> $GITHUB_OUTPUT
+      env:
+        LANGUAGE: ${{ inputs.language }}
+
+    - name: CodeQL analyze
+      id: codeql-analyze
+      uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+      with:
+        category: ${{ steps.category.outputs.category }}
+        output: sarif-results
+        upload: failure-only
+
+    - name: Prepare SARIF
+      id: prep-sarif
+      shell: bash
+      run: |
+        sarif_file=$(find ${SARIF_DIR} -type f -name "*.sarif" | head -n 1)
+        echo "sarif_file=${sarif_file}" >> $GITHUB_OUTPUT
+        
+        if [[ -n ${FILTER_PATTERNS} ]]; then
+          filter_patterns=$(echo "$FILTER_PATTERNS" | tr ',' '\n')
+
+          echo "filter_patterns<<EOF" >> $GITHUB_OUTPUT
+          echo "$filter_patterns" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        else
+          echo "filter_patterns=''" >> $GITHUB_OUTPUT
+        fi
+      env:
+        SARIF_DIR: ${{ steps.codeql-analyze.outputs.sarif-output }}
+        FILTER_PATTERNS: ${{ inputs.filter-patterns }}
+    
+    - name: Filter SARIF
+      if: ${{ steps.prep-sarif.outputs.filter_patterns != '' }}
+      uses: advanced-security/filter-sarif@2da736ff05ef065cb2894ac6892e47b5eac2c3c0 # v1.1
+      with:
+        input: ${{ steps.prep-sarif.outputs.sarif_file }}
+        patterns: ${{ steps.prep-sarif.outputs.filter_patterns }}
+        output: ${{ steps.prep-sarif.outputs.sarif_file }}
+
+    - name: Upload SARIF
+      id: upload-sarif
+      uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+      with:
+        sarif_file: ${{ steps.prep-sarif.outputs.sarif_file }}
