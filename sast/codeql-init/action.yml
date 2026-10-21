@@ -33,28 +33,6 @@ inputs:
 runs:
   using: composite
   steps:
-    # - name: Validate inputs
-    #   shell: bash
-    #   run: |-
-    #     build_mode_none="javascript,python,ruby,rust,actions"
-    #     build_mode_manual="java,swift,csharp,go"
-
-    #     is_mode_none="false"
-    #     is_mode_manual="false"
-
-    #     if [[ ",$language," == *",$build_mode_none," ]]; then
-    #       is_mode_none="true"
-    #     elif [[ ",$language," == *",$build_mode_manual," ]]; then
-    #       is_mode_manual="true"
-    #     fi
-
-    #     if [[ "${is_mode_none}" == "false" && "${is_mode_manual}" == "false" ]]
-    #       echo "invalid language + build-mode pair" >&2
-    #       exit 1
-    #     fi
-    #   env:
-    #     LANGUAGE: ${{ inputs.language }}
-
     - name: Initialize CodeQL
       uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
       with:

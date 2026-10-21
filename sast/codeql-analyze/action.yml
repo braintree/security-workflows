@@ -35,24 +35,21 @@ runs:
       id: category
       shell: bash
       run: |-
-        build_mode_none="javascript,python,ruby,rust,actions"
-        build_mode_manual="java,swift,csharp,go"
+        languages=(javascript python ruby rust java swift csharp go actions)
 
-        is_mode_none="false"
-        is_mode_manual="false"
+        category=""
+        for lang in "${languages[@]}"; do
+          if [[ "$lang" == "${LANGUAGE}" ]]; then
+            category="/language:${LANGUAGE}"
+            break
+          fi
+        done
 
-        if [[ ",$LANGUAGE," == *",$build_mode_none," ]]; then
-          is_mode_none="true"
-        elif [[ ",$LANGUAGE," == *",$build_mode_manual," ]]; then
-          is_mode_manual="true"
-        fi
-
-        if [[ "${is_mode_none}" == "false" && "${is_mode_manual}" == "false" ]]; then
-          echo "invalid language" >&2
+        if [[ -z "${category}" ]]; then
+          printf "invalid language: %s\nOptions: %s\n" "${LANGUAGE}" "${languages[*]}"
           exit 1
         fi
-
-        category="/language:${LANGUAGE}"
+        
         echo "category=${category}" >> $GITHUB_OUTPUT
       env:
         LANGUAGE: ${{ inputs.language }}
