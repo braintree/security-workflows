@@ -1,0 +1,42 @@
+name: CodeQL Init
+description: Set up CodeQL
+
+inputs:
+  language:
+    description: >- 
+      The language for CodeQL to analyze.
+      https://docs.github.com/en/code-security/reference/code-scanning/workflow-configuration-options#languages-to-be-analyzed
+    required: true
+  build-mode:
+    description: >-
+      The build mode that will be used to analyze the language.
+    required: false
+    default: none
+  config-file:
+    description: Path of the config file to use
+    required: false
+  ram:
+    description: >-
+      The amount of memory in MB that can be used by CodeQL extractors.
+      By default, CodeQL extractors will use most of the memory available in the system.
+      This input also sets the amount of memory that can later be used by the "analyze" action.
+    required: false
+    default: ""
+  threads:
+    description: >-
+      The number of threads that can be used by CodeQL extractors.
+      By default, CodeQL extractors will use all the hardware threads available in the system.
+      This input also sets the number of threads that can later be used by the "analyze" action.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+      with:
+        languages: ${{ inputs.language }}
+        build-mode: ${{ inputs.build-mode }}
+        ram: ${{ inputs.ram }}
+        threads: ${{ inputs.threads }}
