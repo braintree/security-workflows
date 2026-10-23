@@ -1,18 +1,17 @@
 name: CodeQL (iOS)
-
 on:
   workflow_call:
     inputs:
       project:
-        description: 'xcodebuild project arg (not used when workspace is set)'
+        description: 'xcodebuild -project arg (e.g. Demo/Demo.xcodeproj). Use this OR workspace, not both.'
+        required: false
+        type: string
+      workspace:
+        description: 'xcodebuild -workspace arg. Deprecated as braintree_ios drops CocoaPods/.xcworkspace — leave empty for SPM-only builds.'
         required: false
         type: string
       scheme:
         description: 'xcodebuild scheme arg'
-        required: true
-        type: string
-      workspace:
-        description: 'xcodebuild workspace arg'
         required: true
         type: string
       filter-patterns:
@@ -41,7 +40,6 @@ jobs:
     timeout-minutes: 30
     strategy:
       fail-fast: false
-
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -55,7 +53,7 @@ jobs:
           fi
           sudo xcode-select -switch /Applications/Xcode_${VERSION}.app
 
-      # Input validation: Demo scheme + BraintreeDropIn.xcworkspace
+      # Input validation: Demo scheme + Demo.xcodeproj (SPM), or library-only scheme with no project/workspace
       - name: Validate inputs
         shell: python
         env:
@@ -64,7 +62,10 @@ jobs:
           WORKSPACE: ${{ inputs.workspace }}
         run: |
           import os, sys
+
           allowed_schemes = ("Demo", "BraintreeDropIn")  # allow library-only builds too
+          # .xcworkspace values kept temporarily for back-compat during the CocoaPods->SPM
+          # transition; remove once all callers have migrated off workspace-based builds.
           allowed_workspaces = ("BraintreeDropIn.xcworkspace", "Braintree.xcworkspace", "PopupBridge.xcworkspace", "", None)
           allowed_projects = ("Demo/Demo.xcodeproj", "Demo.xcodeproj", "BraintreeDropIn.xcodeproj", "PopupBridge.xcodeproj", "", None)
 
@@ -78,19 +79,29 @@ jobs:
               raise SystemExit(f"Invalid workspace: {workspace}. Allowed: {allowed_workspaces}")
           if project not in allowed_projects:
               raise SystemExit(f"Invalid project: {project}. Allowed: {allowed_projects}")
+          if project and workspace:
+              raise SystemExit("Set only one of 'project' or 'workspace', not both.")
 
           print("Inputs validated successfully.")
+
+      # Compute the xcodebuild target flag once, reused by resolve + build steps.
+      # Empty when neither project nor workspace is set, which lets xcodebuild build
+      # directly off the root Package.swift for library-only scheme scans.
+      - name: Compute build target flag
+        id: target
+        run: |
+          if [ -n "${{ inputs.workspace }}" ]; then
+            echo "flag=-workspace ${{ inputs.workspace }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ inputs.project }}" ]; then
+            echo "flag=-project ${{ inputs.project }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "flag=" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Force Swift version to 5.0 in Demo target
         run: |
           if [ -f "Demo/Demo.xcodeproj/project.pbxproj" ]; then
             sed -i '' 's/SWIFT_VERSION = 6.0;/SWIFT_VERSION = 5.0;/g' Demo/Demo.xcodeproj/project.pbxproj
-          fi
-
-      - name: Install CocoaPods (Demo)
-        run: |
-          if [ -f "Podfile.lock" ]; then
-            pod install --repo-update
           fi
 
       # Optional cache to speed SPM fetches
@@ -108,7 +119,7 @@ jobs:
       - name: Resolve Swift Packages (Xcode)
         run: |
           xcodebuild -resolvePackageDependencies \
-            -workspace "${{ inputs.workspace }}" \
+            ${{ steps.target.outputs.flag }} \
             -scheme "${{ inputs.scheme }}" \
             -derivedDataPath "${{ github.workspace }}/DerivedData" \
             -clonedSourcePackagesDirPath SourcePackages
@@ -140,10 +151,11 @@ jobs:
             "CODE_SIGN_IDENTITY="
             "CODESIGNING_REQUIRED=NO"
             "CODE_SIGNING_ALLOWED=NO"
-            "-workspace ${{ inputs.workspace }}"
+            "${{ steps.target.outputs.flag }}"
             "clean"
             "build"
           )
+
           echo "xcodebuild ${args[*]}"
           eval "xcodebuild ${args[*]}"
 
